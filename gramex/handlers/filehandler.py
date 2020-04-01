@@ -204,6 +204,7 @@ class FileHandler(BaseHandler):
             yield self._get_path(self.root)
         else:
             # Eliminate parent directory references like `../` in the URL
+            path = urljoin('/', path)[1:]
             if self.pattern:
                 yield self._get_path(Path(self.pattern.replace('*', path)).absolute())
             else:
@@ -281,7 +282,7 @@ class FileHandler(BaseHandler):
             modified = self.file.stat().st_mtime
             self.set_header('Last-Modified', datetime.datetime.utcfromtimestamp(modified))
 
-            mime_type = mimetypes.types_map.get(self.file.suffix)
+            mime_type = mimetypes.types_map.get(self.file.suffix.lower())
             if mime_type is not None:
                 if mime_type.startswith('text/'):
                     mime_type += '; charset=UTF-8'

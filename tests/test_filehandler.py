@@ -115,6 +115,10 @@ class TestFileHandler(TestGramex):
             'Content-Disposition': None
         })
 
+        self.check('/dir/image.JPG', path='dir/image.JPG', headers={
+            'Content-Type': 'image/jpeg'
+        })
+
     def test_args(self):
         self.check('/dir/args/?高=σ', text=json.dumps({'高': ['σ']}))
         self.check('/dir/args/?高=σ&高=λ&س=►', text=json.dumps(
@@ -271,6 +275,11 @@ class TestFileHandler(TestGramex):
         self.check('/dir/index/.allow')              # But .allow is allowed
         # Paths are resolved before ignoring
         self.check('/dir/ignore-all-except/', path='dir/index.html')
+
+    def test_parent(self):
+        # Eliminate parent directory references
+        from gramex import variables
+        self.check('/{}'.format(variables['GRAMEXDATA']), code=404)
 
     def test_methods(self):
         config = {
