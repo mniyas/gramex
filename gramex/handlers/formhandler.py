@@ -31,13 +31,12 @@ def namespaced_args(args, namespace):
 
 
 class FormHandler(BaseHandler):
-    '''
     # Else there should be at least 1 key that has a url: sub-key. The data spec is at that level
     # Data spec is (url, engine, table, ext, ...) which goes directly to filter
     # It also has
     #   default: which is interpreted as argument defaults
     #   keys: defines the primary key columns
-    '''
+
     # FormHandler function kwargs and the parameters they accept:
     function_vars = {
         'modify': {'data': None, 'key': None, 'handler': None},
@@ -49,7 +48,7 @@ class FormHandler(BaseHandler):
     @classmethod
     def setup(cls, **kwargs):
         super(FormHandler, cls).setup(**kwargs)
-        conf_kwargs = merge(AttrDict(cls.conf.kwargs),
+        conf_kwargs = merge(AttrDict(kwargs),
                             objectpath(gramex_conf, 'handlers.FormHandler', {}),
                             'setdefault')
         cls.headers = conf_kwargs.pop('headers', {})
