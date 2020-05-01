@@ -11,6 +11,8 @@ from tornado.web import HTTPError
 from gramex.http import NOT_FOUND, REQUEST_ENTITY_TOO_LARGE, UNSUPPORTED_MEDIA_TYPE
 from .formhandler import FormHandler
 
+MAX_SIZE = 2**31
+
 
 class DriveHandler(FormHandler):
     '''
@@ -92,7 +94,7 @@ class DriveHandler(FormHandler):
         cls.datasets['data']['modify'] = download_plugin
 
     def check_filelimits(self):
-        max_size = self.filelimits.get('max_size') or 2**31
+        max_size = self.filelimits.get('max_size') or MAX_SIZE
         allow = set(ext.lower() for ext in self.filelimits.get('allow', []))
         exclude = set(ext.lower() for ext in self.filelimits.get('exclude', []))
         for name, ext, size in zip(self.args['file'], self.args['ext'], self.args['size']):
