@@ -11,7 +11,7 @@ from tornado.web import HTTPError
 from gramex.http import NOT_FOUND, REQUEST_ENTITY_TOO_LARGE, UNSUPPORTED_MEDIA_TYPE
 from .formhandler import FormHandler
 
-MAX_SIZE = 2**31
+MAX_SIZE = 2147483648
 
 
 class DriveHandler(FormHandler):
