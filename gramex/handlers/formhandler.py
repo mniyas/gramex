@@ -5,6 +5,7 @@ import json
 import tornado.gen
 import gramex.cache
 import gramex.data
+import pandas as pd
 from orderedattrdict import AttrDict
 from tornado.web import HTTPError
 from gramex import conf as gramex_conf
@@ -59,7 +60,7 @@ class FormHandler(BaseHandler):
         cls.clear_special_keys(conf_kwargs)
         # If top level has url: then data spec is at top level. Else it's a set of sub-keys
         if 'url' in conf_kwargs:
-            cls.datasets = {'data': conf_kwargs}
+            cls.datasets = AttrDict(data=conf_kwargs)
             cls.single = True
         else:
             if 'modify' in conf_kwargs:
@@ -179,8 +180,12 @@ class FormHandler(BaseHandler):
             self.set_header('Content-Disposition', 'attachment;filename=%s' % opt.download)
         if opt.meta_header:
             self.set_meta_headers(meta)
-        self.write(gramex.data.download(result['data'] if self.single else result,
-                                        **format_options))
+        result = result['data'] if self.single else result
+        # If modify has changed the content type from a dataframe, write it as-is
+        if isinstance(result, (pd.DataFrame, dict)):
+            self.write(gramex.data.download(result, **format_options))
+        else:
+            self.write(result)
 
     @tornado.gen.coroutine
     def update(self, method, *path_args, **path_kwargs):
