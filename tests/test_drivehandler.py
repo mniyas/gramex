@@ -5,6 +5,7 @@ import os
 import json
 import time
 import requests
+import pandas as pd
 import gramex.data
 from shutil import rmtree
 from mimetypes import guess_type
@@ -14,6 +15,7 @@ from gramex.http import (OK, BAD_REQUEST, NOT_FOUND, REQUEST_ENTITY_TOO_LARGE,
                          UNSUPPORTED_MEDIA_TYPE)
 from gramex.install import _ensure_remove
 from nose.tools import eq_, ok_
+from pandas.util.testing import assert_frame_equal as afe
 from . import server, TestGramex
 
 
@@ -161,10 +163,69 @@ class TestDriveHandler(TestGramex):
         r = requests.delete(self.url)
         eq_(r.status_code, BAD_REQUEST)
 
-        # TODO: PUT renames files
-        # TODO: PUT overwrites files
-        # TODO: If PUT request changes the MIME type, use the changed MIME type
-        # TODO: If we add a modify, e.g. prefix filename with 'xx-', it still works
+        # PUT w/o file upload updates file, mime, ext, tags, etc.
+        # NOT path, size, date, user_*
+        data = gramex.data.filter(self.con, table='drive')
+        params = {
+            'id': data.id.iloc[0],
+            'file': 'a.x',
+            'ext': '.x',
+            'mime': 'text/x',
+            'tag': 't',
+            'cat': 'c',
+            'path': 'a.x',
+            'size': 100,
+            'date': 100,
+            'user_id': 'A',
+            'user_role': 'B'
+        }
+        r = requests.put(self.url, params=params)
+        eq_(r.status_code, OK)
+        data2 = gramex.data.filter(self.con, table='drive')
+        new = data2[data2.id == data.id.iloc[0]].iloc[0]
+        old = data[data.id == data.id.iloc[0]].iloc[0]
+        for field in ('id', 'file', 'mime', 'ext', 'tag', 'cat'):
+            eq_(new[field], params[field])
+        for field in ('path', 'size', 'date', 'user_id', 'user_role'):
+            eq_(new[field], old[field])
+        # ... but with file upload updates size, date and user attributes
+        params['id'] = data.id.iloc[1]
+        files = (
+            ('file', ('dir/text.txt', open('dir/text.txt', 'rb'))),
+            # Even if multiple files are PUT, only the 1st is considered
+            ('file', ('userdata', open('userdata.csv', 'rb'))),
+        )
+        secret = gramex.service.app.settings['cookie_secret']
+        user = {'id': 'AB', 'role': 'CD'}
+        r = requests.put(self.url, params=params, files=files, headers={
+            'X-Gramex-User': create_signed_value(secret, 'user', json.dumps(user))
+        })
+        eq_(r.status_code, OK)
+        data2 = gramex.data.filter(self.con, table='drive')
+        new = data2[data2.id == data.id.iloc[1]].iloc[0]
+        old = data[data.id == data.id.iloc[1]].iloc[0]
+        for field in ('id', 'file', 'mime', 'ext', 'tag', 'cat'):
+            eq_(new[field], params[field])
+        eq_(new['path'], old['path'])
+        eq_(new['size'], os.stat('dir/text.txt').st_size)
+        ok_(time.time() - 2 <= new['date'] <= time.time())
+        eq_(new['user_id'], user['id'])
+        eq_(new['user_role'], user['role'])
+        # Actual files are overwritten
+        eq_(new['size'], os.stat(os.path.join(self.kwargs.path, new['path'])).st_size)
+
+        # TEST: Nothing changes if ID is missing, even if file is present
+        params['id'] = -1
+        data = gramex.data.filter(self.con, table='drive')
+        r = requests.put(self.url, params=params, files=files)
+        data2 = gramex.data.filter(self.con, table='drive')
+        afe(data, data2)
+
+        # The modify: works even though we have a download override.
+        # It sets the 'm' column to 'OK'
+        data = pd.DataFrame(requests.get(self.url).json())
+        print(data['m'])
+        ok_((data['m'] == 'OK').all())
 
         # TODO: When server is restarted, it has the new columns
 

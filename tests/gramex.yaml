@@ -1186,6 +1186,7 @@ url:
         allow: [.txt, .html, .csv, .md, .xlsx, .zip, .py, .jpg]
         exclude: [.py, .zip]
         max_size: 10000
+      modify: utils.drivehandler_modify
       xsrf_cookies: false
 
   auth/session:

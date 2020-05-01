@@ -23,9 +23,9 @@ class DriveHandler(FormHandler):
             user: [id, role, hd]            # user attributes to store
             tags: [tag]                     # <input name=""> to store
         filelimits:
-            allow: [.doc, .docx]
-            exclude: [.pdf]
-            max_size: 100000
+            allow: [.doc, .docx]            # Only allow these files
+            exclude: [.pdf]                 # Exclude these files
+            max_size: 100000                # Files must be smaller than this
         redirect:                           # After uploading the file,
             query: next                     #   ... redirect to ?next=
             url: /$YAMLURL/                 #   ... else to this directory
@@ -107,6 +107,7 @@ class DriveHandler(FormHandler):
     @tornado.gen.coroutine
     def post(self, *path_args, **path_kwargs):
         '''Saves uploaded files, then updates metadata DB'''
+        user = self.current_user or {}
         uploads = self.request.files.get('file', [])
         n = len(uploads)
         # Initialize all DB columns (except ID) to have the same number of rows as uploads
@@ -131,7 +132,7 @@ class DriveHandler(FormHandler):
                 self.args['mime'][i] = guess_type(file, strict=False)[0]
             # Append user attributes
             for s in self.customfields.get('user', []):
-                self.args['user_%s' % s][i] = (self.current_user or {}).get(s, None)
+                self.args['user_%s' % s][i] = user.get(s, None)
         self.check_filelimits()
         yield super().post(*path_args, **path_kwargs)
         for upload, path in zip(uploads, self.args['path']):
@@ -148,4 +149,31 @@ class DriveHandler(FormHandler):
             path = os.path.join(self.path, row['path'])
             if os.path.exists(path):
                 os.remove(path)
+        return result
+
+    @tornado.gen.coroutine
+    def put(self, *path_args, **path_kwargs):
+        '''Update attributes and files'''
+        # PUT can update only 1 ID at a time. Use only the first upload, if any
+        uploads = self.request.files.get('file', [])[:1]
+        id = self.args.get('id', [-1])
+        # User cannot change the path, size, date or user attributes
+        for s in ('path', 'size', 'date'):
+            self.args.pop(s, None)
+        for s in self.customfields.get('user', []):
+            self.args.pop('user_%s' % s, None)
+        # These are updated only when a file is uploaded
+        if len(uploads):
+            user = self.current_user or {}
+            self.args.setdefault('size', []).append(len(uploads[0]['body']))
+            self.args.setdefault('date', []).append(int(time.time()))
+            for s in self.customfields.get('user', []):
+                self.args.setdefault('user_%s' % s, []).append(user.get(s, None))
+        conf = self.datasets.data
+        files = gramex.data.filter(conf.url, table=conf.table, args={'id': id})
+        result = yield super().put(*path_args, **path_kwargs)
+        if len(uploads) and len(files):
+            path = os.path.join(self.path, files['path'].iloc[0])
+            with open(path, 'wb') as handle:
+                handle.write(uploads[0]['body'])
         return result
